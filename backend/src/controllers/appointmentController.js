@@ -4,16 +4,25 @@ const prisma = new PrismaClient()
 
 exports.getAll = async (req, res) => {
     try {
-        const { date } = req.query
+        const { doctorId, patientId, date } = req.query
+        const where = {}
+        if (doctorId) where.doctorId = Number(doctorId)
+        if (patientId) where.patientId = Number(patientId)
+        if (date) {
+            const d = new Date(date)
+            const next = new Date(d)
+            next.setDate(next.getDate() + 1)
+            where.timeSlot = { date: { gte: d, lt: next } }
+        }
+
         const appointments = await prisma.appointment.findMany({
-            where: date ? {
-                date: {
-                    gte: new Date(date),
-                    lt: new Date(new Date(date).getTime() + 86400000)
-                }
-            } : undefined,
-            include: { patient: true, doctor: true },
-            orderBy: { date: 'asc' }
+            where,
+            include: {
+                patient: { include: { user: { select: { name: true, phone: true, email: true } } } },
+                doctor: { include: { user: { select: { name: true } } } },
+                timeSlot: true
+            },
+            orderBy: { timeSlot: { date: 'asc' } }
         })
         res.json(appointments)
     } catch (e) {
@@ -23,43 +32,75 @@ exports.getAll = async (req, res) => {
 
 exports.create = async (req, res) => {
     try {
+        const { doctorId, timeSlotId, complaint } = req.body
+
+        const patient = await prisma.patient.findUnique({ where: { userId: req.user.id } })
+        if (!patient) return res.status(400).json({ error: 'Профиль пациента не найден' })
+
+        const slot = await prisma.timeSlot.findUnique({ where: { id: Number(timeSlotId) } })
+        if (!slot || !slot.available) return res.status(400).json({ error: 'Слот недоступен' })
+
         const appointment = await prisma.appointment.create({
-            data: { ...req.body, userId: req.user.id },
-            include: { patient: true, doctor: true }
+            data: {
+                patientId: patient.id,
+                doctorId: Number(doctorId),
+                userId: req.user.id,
+                timeSlotId: Number(timeSlotId),
+                complaint
+            },
+            include: {
+                patient: { include: { user: { select: { name: true } } } },
+                doctor: { include: { user: { select: { name: true } } } },
+                timeSlot: true
+            }
         })
 
+        await prisma.timeSlot.update({ where: { id: Number(timeSlotId) }, data: { available: false } })
+
         await appointmentQueue.add('send-reminder', {
-            appointmentId: appointment.id,
-            patientName: appointment.patient.firstName,
-            doctorName: appointment.doctor.name,
-            date: appointment.date
-        }, {
-            delay: 5000
-        })
+            patientName: appointment.patient.user.name,
+            doctorName: appointment.doctor.user.name,
+            date: appointment.timeSlot.date
+        }, { delay: 5000 })
 
         res.json(appointment)
     } catch (e) {
+        console.error(e)
         res.status(400).json({ error: 'Ошибка создания записи' })
     }
 }
 
-exports.update = async (req, res) => {
+exports.updateStatus = async (req, res) => {
     try {
+        const { status, notes } = req.body
         const appointment = await prisma.appointment.update({
             where: { id: Number(req.params.id) },
-            data: req.body
+            data: { status, notes }
         })
+        if (status === 'CANCELLED') {
+            await prisma.timeSlot.update({ where: { id: appointment.timeSlotId }, data: { available: true } })
+        }
         res.json(appointment)
     } catch (e) {
         res.status(400).json({ error: 'Ошибка обновления' })
     }
 }
 
-exports.remove = async (req, res) => {
+exports.myAppointments = async (req, res) => {
     try {
-        await prisma.appointment.delete({ where: { id: Number(req.params.id) } })
-        res.json({ message: 'Запись удалена' })
+        const patient = await prisma.patient.findUnique({ where: { userId: req.user.id } })
+        if (!patient) return res.status(404).json({ error: 'Профиль не найден' })
+
+        const appointments = await prisma.appointment.findMany({
+            where: { patientId: patient.id },
+            include: {
+                doctor: { include: { user: { select: { name: true } } } },
+                timeSlot: true
+            },
+            orderBy: { timeSlot: { date: 'desc' } }
+        })
+        res.json(appointments)
     } catch (e) {
-        res.status(400).json({ error: 'Ошибка удаления' })
+        res.status(500).json({ error: 'Ошибка сервера' })
     }
 }

@@ -320,3 +320,26 @@ body {
   font-size: 13px;
   margin-bottom: 16px;
 }
+
+.patient-welcome {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  background: linear-gradient(135deg, #1a365d, #2b6cb0);
+  border-radius: 16px;
+  padding: 28px 32px;
+  color: white;
+}
+
+.patient-welcome h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: white;
+}
+
+.patient-welcome p {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+}

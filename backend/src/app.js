@@ -3,6 +3,8 @@ const cors = require('cors')
 const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 require('dotenv').config()
+const swaggerUi = require('swagger-ui-express')
+const swaggerSpec = require('./swagger')
 
 const authRoutes = require('./routes/auth')
 const patientRoutes = require('./routes/patients')
@@ -21,6 +23,7 @@ const limiter = rateLimit({
     max: 100
 })
 app.use(limiter)
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
 app.use('/api/auth', authRoutes)
 app.use('/api/patients', patientRoutes)

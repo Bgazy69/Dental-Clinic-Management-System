@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import api from '../api'
+import api from '../../api'
 
 export default function Dashboard() {
     const [stats, setStats] = useState({ patients: 0, doctors: 0, appointments: 0 })

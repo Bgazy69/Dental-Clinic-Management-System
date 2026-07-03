@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import api from '../api'
 
 export default function Login() {
@@ -17,7 +17,10 @@ export default function Login() {
             const res = await api.post('/auth/login', { email, password })
             localStorage.setItem('token', res.data.token)
             localStorage.setItem('user', JSON.stringify(res.data.user))
-            navigate('/')
+            const role = res.data.user.role
+            if (role === 'ADMIN') navigate('/admin')
+            else if (role === 'DOCTOR') navigate('/doctor')
+            else navigate('/patient')
         } catch {
             setError('Неверный email или пароль')
         } finally {
@@ -29,12 +32,12 @@ export default function Login() {
         <div className="login-page">
             <div className="login-card">
                 <h1>🦷 DentalClinic</h1>
-                <p>Система управления клиникой</p>
+                <p>Войдите в свой аккаунт</p>
                 {error && <div className="error-msg">{error}</div>}
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label>Email</label>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="admin@clinic.com" />
+                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="your@email.com" />
                     </div>
                     <div className="form-group">
                         <label>Пароль</label>
@@ -44,6 +47,12 @@ export default function Login() {
                         {loading ? 'Вход...' : 'Войти'}
                     </button>
                 </form>
+                <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14, color: '#718096' }}>
+                    Нет аккаунта? <Link to="/register" style={{ color: '#3182ce' }}>Зарегистрироваться</Link>
+                </p>
+                <p style={{ textAlign: 'center', marginTop: 8, fontSize: 14, color: '#718096' }}>
+                    <Link to="/" style={{ color: '#3182ce' }}>← На главную</Link>
+                </p>
             </div>
         </div>
     )

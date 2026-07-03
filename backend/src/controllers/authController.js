@@ -5,13 +5,26 @@ const prisma = new PrismaClient()
 
 exports.register = async (req, res) => {
     try {
-        const { email, password, name, role } = req.body
+        const { email, password, name, phone } = req.body
         const hashed = await bcrypt.hash(password, 10)
+
         const user = await prisma.user.create({
-            data: { email, password: hashed, name, role }
+            data: {
+                email, password: hashed, name, phone,
+                role: 'PATIENT',
+                patientProfile: { create: {} }
+            },
+            include: { patientProfile: true }
         })
-        res.json({ message: 'Пользователь создан', id: user.id })
+
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        )
+        res.json({ token, user: { id: user.id, name: user.name, role: user.role, email: user.email } })
     } catch (e) {
+        console.error(e)
         res.status(400).json({ error: 'Email уже существует' })
     }
 }
@@ -19,7 +32,10 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body
-        const user = await prisma.user.findUnique({ where: { email } })
+        const user = await prisma.user.findUnique({
+            where: { email },
+            include: { doctorProfile: true, patientProfile: true }
+        })
         if (!user) return res.status(400).json({ error: 'Пользователь не найден' })
 
         const valid = await bcrypt.compare(password, user.password)
@@ -30,7 +46,30 @@ exports.login = async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         )
-        res.json({ token, user: { id: user.id, name: user.name, role: user.role } })
+        res.json({
+            token,
+            user: {
+                id: user.id, name: user.name, role: user.role, email: user.email,
+                doctorId: user.doctorProfile?.id || null,
+                patientId: user.patientProfile?.id || null
+            }
+        })
+    } catch (e) {
+        res.status(500).json({ error: 'Ошибка сервера' })
+    }
+}
+
+exports.me = async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: { doctorProfile: true, patientProfile: true }
+        })
+        res.json({
+            id: user.id, name: user.name, role: user.role, email: user.email, phone: user.phone,
+            doctorId: user.doctorProfile?.id || null,
+            patientId: user.patientProfile?.id || null
+        })
     } catch (e) {
         res.status(500).json({ error: 'Ошибка сервера' })
     }

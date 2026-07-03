@@ -6,17 +6,23 @@ exports.getAll = async (req, res) => {
         const { search } = req.query
         const patients = await prisma.patient.findMany({
             where: search ? {
-                OR: [
-                    { firstName: { contains: search, mode: 'insensitive' } },
-                    { lastName: { contains: search, mode: 'insensitive' } },
-                    { phone: { contains: search } }
-                ]
+                user: {
+                    OR: [
+                        { name: { contains: search, mode: 'insensitive' } },
+                        { phone: { contains: search } },
+                        { email: { contains: search, mode: 'insensitive' } }
+                    ]
+                }
             } : undefined,
-            include: { appointments: true },
+            include: {
+                user: { select: { name: true, email: true, phone: true } },
+                appointments: true
+            },
             orderBy: { createdAt: 'desc' }
         })
         res.json(patients)
     } catch (e) {
+        console.error(e)
         res.status(500).json({ error: 'Ошибка сервера' })
     }
 }
@@ -25,7 +31,16 @@ exports.getOne = async (req, res) => {
     try {
         const patient = await prisma.patient.findUnique({
             where: { id: Number(req.params.id) },
-            include: { appointments: { include: { doctor: true } }, medicalRecords: true }
+            include: {
+                user: { select: { name: true, email: true, phone: true } },
+                appointments: {
+                    include: {
+                        doctor: { include: { user: { select: { name: true } } } },
+                        timeSlot: true
+                    }
+                },
+                medicalRecords: true
+            }
         })
         if (!patient) return res.status(404).json({ error: 'Пациент не найден' })
         res.json(patient)
@@ -36,18 +51,34 @@ exports.getOne = async (req, res) => {
 
 exports.create = async (req, res) => {
     try {
-        const patient = await prisma.patient.create({ data: req.body })
-        res.json(patient)
+        const { name, email, phone, password, dateOfBirth, address } = req.body
+        const bcrypt = require('bcryptjs')
+        const hashed = await bcrypt.hash(password || 'password123', 10)
+
+        const user = await prisma.user.create({
+            data: {
+                name, email, phone,
+                password: hashed,
+                role: 'PATIENT',
+                patientProfile: {
+                    create: { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null, address }
+                }
+            },
+            include: { patientProfile: true }
+        })
+        res.json(user.patientProfile)
     } catch (e) {
-        res.status(400).json({ error: 'Ошибка создания пациента' })
+        console.error(e)
+        res.status(400).json({ error: 'Email уже существует или ошибка данных' })
     }
 }
 
 exports.update = async (req, res) => {
     try {
+        const { dateOfBirth, address } = req.body
         const patient = await prisma.patient.update({
             where: { id: Number(req.params.id) },
-            data: req.body
+            data: { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined, address }
         })
         res.json(patient)
     } catch (e) {
@@ -57,7 +88,9 @@ exports.update = async (req, res) => {
 
 exports.remove = async (req, res) => {
     try {
-        await prisma.patient.delete({ where: { id: Number(req.params.id) } })
+        const patient = await prisma.patient.findUnique({ where: { id: Number(req.params.id) } })
+        if (!patient) return res.status(404).json({ error: 'Пациент не найден' })
+        await prisma.user.delete({ where: { id: patient.userId } })
         res.json({ message: 'Пациент удалён' })
     } catch (e) {
         res.status(400).json({ error: 'Ошибка удаления' })
