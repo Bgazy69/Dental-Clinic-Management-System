@@ -49,19 +49,23 @@ exports.create = async (req, res) => {
                 complaint
             },
             include: {
-                patient: { include: { user: { select: { name: true } } } },
+                patient: { include: { user: { select: { name: true, email: true } } } },
                 doctor: { include: { user: { select: { name: true } } } },
                 timeSlot: true
             }
         })
 
-        await prisma.timeSlot.update({ where: { id: Number(timeSlotId) }, data: { available: false } })
+        await prisma.timeSlot.update({
+            where: { id: Number(timeSlotId) },
+            data: { available: false }
+        })
 
         await appointmentQueue.add('send-reminder', {
             patientName: appointment.patient.user.name,
+            patientEmail: appointment.patient.user.email,
             doctorName: appointment.doctor.user.name,
             date: appointment.timeSlot.date
-        }, { delay: 5000 })
+        }, { delay: 3000 })
 
         res.json(appointment)
     } catch (e) {
@@ -78,7 +82,10 @@ exports.updateStatus = async (req, res) => {
             data: { status, notes }
         })
         if (status === 'CANCELLED') {
-            await prisma.timeSlot.update({ where: { id: appointment.timeSlotId }, data: { available: true } })
+            await prisma.timeSlot.update({
+                where: { id: appointment.timeSlotId },
+                data: { available: true }
+            })
         }
         res.json(appointment)
     } catch (e) {

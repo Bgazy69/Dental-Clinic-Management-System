@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { PrismaClient } = require('@prisma/client')
+const { sendWelcomeEmail } = require('../services/emailService')
 const prisma = new PrismaClient()
 
 exports.register = async (req, res) => {
@@ -16,6 +17,9 @@ exports.register = async (req, res) => {
             },
             include: { patientProfile: true }
         })
+
+        // Приветственное письмо — не блокирует ответ
+        sendWelcomeEmail({ to: email, name })
 
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role },
