@@ -30,6 +30,8 @@ app.use('/api/patients', patientRoutes)
 app.use('/api/doctors', doctorRoutes)
 app.use('/api/appointments', appointmentRoutes)
 app.use('/api/reports', reportRoutes)
+const externalRoutes = require('./routes/external')
+app.use('/api/external', externalRoutes)
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Dental Clinic API running' })

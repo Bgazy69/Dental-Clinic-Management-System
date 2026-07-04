@@ -1,6 +1,7 @@
 const router = require('express').Router()
 const auth = require('../middleware/auth')
 const role = require('../middleware/role')
+const { cache } = require('../middleware/cache')
 const { getAll, getOne, create, remove, getSlots, createSlots } = require('../controllers/doctorController')
 
 /**
@@ -14,7 +15,7 @@ const { getAll, getOne, create, remove, getSlots, createSlots } = require('../co
  *       200:
  *         description: Массив врачей
  */
-router.get('/', getAll)
+router.get('/', cache(120), getAll)
 
 /**
  * @swagger
@@ -31,17 +32,15 @@ router.get('/', getAll)
  *           type: integer
  *     responses:
  *       200:
- *         description: Данные врача со слотами
- *       404:
- *         description: Врач не найден
+ *         description: Данные врача
  */
-router.get('/:id', getOne)
+router.get('/:id', cache(120), getOne)
 
 /**
  * @swagger
  * /doctors/{id}/slots:
  *   get:
- *     summary: Получить доступные слоты врача
+ *     summary: Доступные слоты врача
  *     tags: [Doctors]
  *     security: []
  *     parameters:
@@ -54,13 +53,11 @@ router.get('/:id', getOne)
  *         name: date
  *         schema:
  *           type: string
- *           format: date
- *         example: "2026-07-10"
  *     responses:
  *       200:
  *         description: Список слотов
  */
-router.get('/:id/slots', getSlots)
+router.get('/:id/slots', cache(30), getSlots)
 
 /**
  * @swagger
@@ -78,27 +75,15 @@ router.get('/:id/slots', getSlots)
  *             properties:
  *               name:
  *                 type: string
- *                 example: Алия Сейткали
  *               email:
  *                 type: string
- *                 example: doctor@clinic.com
  *               password:
  *                 type: string
- *                 example: doctor123
- *               phone:
- *                 type: string
- *                 example: "+77001234567"
  *               specialty:
  *                 type: string
- *                 example: Терапевт
- *               bio:
- *                 type: string
- *                 example: Опытный врач с 10 летним стажем
  *     responses:
  *       200:
  *         description: Врач создан
- *       403:
- *         description: Нет доступа
  */
 router.post('/', auth, role('ADMIN'), create)
 
@@ -125,7 +110,6 @@ router.post('/', auth, role('ADMIN'), create)
  *                 type: array
  *                 items:
  *                   type: string
- *                 example: ["2026-07-10T08:00:00.000Z", "2026-07-10T09:00:00.000Z"]
  *     responses:
  *       200:
  *         description: Слоты добавлены
@@ -147,8 +131,6 @@ router.post('/:id/slots', auth, role('DOCTOR', 'ADMIN'), createSlots)
  *     responses:
  *       200:
  *         description: Врач удалён
- *       403:
- *         description: Нет доступа
  */
 router.delete('/:id', auth, role('ADMIN'), remove)
 
