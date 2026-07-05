@@ -16,7 +16,13 @@ export default function DoctorSchedule() {
 
     const addSlots = useMutation({
         mutationFn: () => {
-            const slotDates = times.map(t => `${date}T${t}:00.000Z`)
+            // Создаём дату в локальном времени правильно
+            const slotDates = times.map(t => {
+                const [hours, minutes] = t.split(':')
+                const d = new Date(date)
+                d.setHours(Number(hours), Number(minutes), 0, 0)
+                return d.toISOString()
+            })
             return api.post(`/doctors/${user.doctorId}/slots`, { slots: slotDates })
         },
         onSuccess: () => { qc.invalidateQueries(['my-slots']); setTimes([]) },

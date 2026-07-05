@@ -10,9 +10,12 @@ exports.getAll = async (req, res) => {
         if (patientId) where.patientId = Number(patientId)
         if (date) {
             const d = new Date(date)
-            const next = new Date(d)
-            next.setDate(next.getDate() + 1)
-            where.timeSlot = { date: { gte: d, lt: next } }
+            // Берём весь день с запасом ±1 день чтобы покрыть любой часовой пояс
+            const from = new Date(d)
+            from.setDate(from.getDate() - 1)
+            const to = new Date(d)
+            to.setDate(to.getDate() + 2)
+            where.timeSlot = { date: { gte: from, lt: to } }
         }
 
         const appointments = await prisma.appointment.findMany({
