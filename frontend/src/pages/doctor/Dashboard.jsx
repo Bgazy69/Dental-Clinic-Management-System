@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../api'
+import StatCard from '../../components/StatCard'
+import { Calendar, CheckCircle, Users, Clock, RefreshCw, ChevronRight, Phone, Mail } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function DoctorDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     const qc = useQueryClient()
 
-    // Берём сегодняшнюю дату в локальном времени
     const now = new Date()
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
@@ -14,7 +16,7 @@ export default function DoctorDashboard() {
         queryKey: ['doctor-today', user.doctorId, today],
         queryFn: () => api.get(`/appointments?doctorId=${user.doctorId}&date=${today}`).then(r => r.data),
         enabled: !!user.doctorId,
-        refetchInterval: 30000 // обновляем каждые 30 сек
+        refetchInterval: 30000 
     })
 
     const updateStatus = useMutation({
@@ -22,7 +24,6 @@ export default function DoctorDashboard() {
         onSuccess: () => qc.invalidateQueries(['doctor-today'])
     })
 
-    // Фильтруем точно по сегодняшнему дню на фронте
     const todayAppointments = appointments.filter(a => {
         const apptDate = new Date(a.timeSlot?.date)
         return apptDate.getFullYear() === now.getFullYear() &&
@@ -32,89 +33,166 @@ export default function DoctorDashboard() {
 
     const scheduled = todayAppointments.filter(a => a.status === 'SCHEDULED')
     const completed = todayAppointments.filter(a => a.status === 'COMPLETED')
+    const nextPatient = scheduled[0]
 
     return (
-        <div>
-            <h1 className="page-title">
-                Сегодня — {now.toLocaleDateString('ru', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </h1>
-
-            <div className="stats-grid" style={{ marginBottom: 24 }}>
-                <div className="stat-card">
-                    <div className="stat-icon" style={{ background: '#bee3f8' }}>📅</div>
-                    <div className="stat-info"><h3>{scheduled.length}</h3><p>Ожидает приёма</p></div>
+        <div className="animate-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+                <div>
+                    <h1 className="page-title" style={{ margin: 0 }}>Приемы на сегодня</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+                        {now.toLocaleDateString('ru', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </p>
                 </div>
-                <div className="stat-card">
-                    <div className="stat-icon" style={{ background: '#c6f6d5' }}>✅</div>
-                    <div className="stat-info"><h3>{completed.length}</h3><p>Принято сегодня</p></div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon" style={{ background: '#fefcbf' }}>👥</div>
-                    <div className="stat-info"><h3>{todayAppointments.length}</h3><p>Всего записей</p></div>
-                </div>
+                <button className="btn btn-outline" onClick={() => qc.invalidateQueries(['doctor-today'])} disabled={isLoading}>
+                    <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} /> Обновить
+                </button>
             </div>
 
-            <div className="card" style={{ padding: 0 }}>
-                <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 600 }}>Список пациентов на сегодня</h2>
-                    <button className="btn btn-primary btn-sm" onClick={() => qc.invalidateQueries(['doctor-today'])}>
-                        🔄 Обновить
-                    </button>
+            <div className="stats-grid">
+                <StatCard 
+                    label="Ожидает приема" 
+                    value={scheduled.length} 
+                    icon={<Clock size={24} />} 
+                    color="#f59e0b" 
+                    delay={0.1}
+                />
+                <StatCard 
+                    label="Завершено" 
+                    value={completed.length} 
+                    icon={<CheckCircle size={24} />} 
+                    color="#10b981" 
+                    delay={0.2}
+                />
+                <StatCard 
+                    label="Всего на сегодня" 
+                    value={todayAppointments.length} 
+                    icon={<Users size={24} />} 
+                    color="#2563eb" 
+                    delay={0.3}
+                />
+            </div>
+
+            <div className="content-grid">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <div className="card">
+                        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 24 }}>Список пациентов</h2>
+                        
+                        {isLoading ? (
+                            <div style={{ padding: 64, textAlign: 'center' }}>
+                                <RefreshCw className="animate-spin" size={32} style={{ opacity: 0.2 }} />
+                            </div>
+                        ) : todayAppointments.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 64 }} className="glass">
+                                <Calendar size={48} style={{ opacity: 0.1, marginBottom: 16 }} />
+                                <p style={{ color: 'var(--text-muted)' }}>На сегодня записей нет</p>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                {todayAppointments.map((a, i) => (
+                                    <motion.div 
+                                        key={a.id}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: i * 0.1 }}
+                                        style={{ 
+                                            padding: 20, 
+                                            borderRadius: 16, 
+                                            border: '1px solid var(--border)',
+                                            background: a.id === nextPatient?.id ? 'rgba(37, 99, 235, 0.03)' : 'transparent',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                                            <div style={{ 
+                                                width: 48, 
+                                                height: 48, 
+                                                borderRadius: 12, 
+                                                background: 'var(--primary)', 
+                                                color: 'white', 
+                                                display: 'flex', 
+                                                alignItems: 'center', 
+                                                justifyContent: 'center',
+                                                fontWeight: 800
+                                            }}>
+                                                {new Date(a.timeSlot?.date).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: 15 }}>{a.patient?.user?.name}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                                                    {a.complaint || 'Плановый осмотр'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                            <span className={`badge badge-${a.status.toLowerCase()}`}>
+                                                {a.status === 'SCHEDULED' ? 'Ожидает' : a.status === 'COMPLETED' ? 'Принят' : 'Отмена'}
+                                            </span>
+                                            {a.status === 'SCHEDULED' && (
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <button 
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={() => updateStatus.mutate({ id: a.id, status: 'COMPLETED' })}
+                                                    >
+                                                        Завершить
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {isLoading ? (
-                    <div style={{ padding: 48, textAlign: 'center', color: '#718096' }}>Загрузка...</div>
-                ) : todayAppointments.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: 48 }}>
-                        <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-                        <p style={{ color: '#718096', marginBottom: 8 }}>На сегодня записей нет</p>
-                        <p style={{ color: '#a0aec0', fontSize: 13 }}>Дата: {today}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <AnimatePresence>
+                        {nextPatient && (
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="card glass"
+                                style={{ background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)', color: 'white', border: 'none' }}
+                            >
+                                <h3 style={{ fontSize: 14, fontWeight: 600, opacity: 0.8, marginBottom: 20, textTransform: 'uppercase', letterSpacing: 1 }}>
+                                    Следующий пациент
+                                </h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+                                    <img src={`https://ui-avatars.com/api/?name=${nextPatient.patient?.user?.name}&background=random`} 
+                                         style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.2)' }} alt="ava" />
+                                    <div>
+                                        <div style={{ fontSize: 20, fontWeight: 800 }}>{nextPatient.patient?.user?.name}</div>
+                                        <div style={{ fontSize: 14, opacity: 0.9 }}>Прием в {new Date(nextPatient.timeSlot?.date).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}</div>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                                        <Phone size={14} /> {nextPatient.patient?.user?.phone}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                                        <Mail size={14} /> {nextPatient.patient?.user?.email}
+                                    </div>
+                                </div>
+                                <button className="btn" style={{ background: 'white', color: 'var(--primary)', width: '100%', justifyContent: 'center' }}>
+                                    Начать прием <ChevronRight size={18} />
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <div className="card">
+                        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Ваше расписание</h3>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                            У вас сегодня {todayAppointments.length} записей. Среднее время приема: 30 минут. 
+                            Ближайшее свободное окно: после 18:00.
+                        </p>
                     </div>
-                ) : (
-                    <div>
-                        {todayAppointments.map((a, i) => (
-                            <div key={a.id} style={{
-                                padding: '20px 24px',
-                                borderBottom: i < todayAppointments.length - 1 ? '1px solid #e2e8f0' : 'none',
-                                display: 'flex', alignItems: 'center', gap: 16
-                            }}>
-                                <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#bee3f8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
-                                    👤
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: 600, color: '#1a365d', marginBottom: 2 }}>
-                                        {a.patient?.user?.name}
-                                    </div>
-                                    <div style={{ fontSize: 13, color: '#718096' }}>
-                                        🕐 {new Date(a.timeSlot?.date).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}
-                                        {a.complaint && ` · ${a.complaint}`}
-                                    </div>
-                                    <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 2 }}>
-                                        {a.patient?.user?.phone} · {a.patient?.user?.email}
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                                    <span className={`badge badge-${a.status.toLowerCase()}`}>
-                                        {a.status === 'SCHEDULED' ? 'Ожидает' : a.status === 'COMPLETED' ? 'Завершён' : 'Отменён'}
-                                    </span>
-                                    {a.status === 'SCHEDULED' && (
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                            <button className="btn btn-success btn-sm"
-                                                onClick={() => updateStatus.mutate({ id: a.id, status: 'COMPLETED' })}>
-                                                ✓ Принят
-                                            </button>
-                                            <button className="btn btn-danger btn-sm"
-                                                onClick={() => updateStatus.mutate({ id: a.id, status: 'CANCELLED' })}>
-                                                ✕
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                </div>
             </div>
         </div>
     )
-}
+}
