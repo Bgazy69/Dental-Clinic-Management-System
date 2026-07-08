@@ -13,6 +13,7 @@ docker compose up --build -d
 - 📚 Swagger: http://localhost:5000/api/docs
 
 ## 👥 Роли пользователей
+12
 
 | Роль | Доступ | Регистрация |
 |------|--------|-------------|
